@@ -42,7 +42,6 @@ Details on model training and evaluation coming soon.
 
 ![Result 04](./images/result_04.png)
 
-
 ## 📖 References & Resources
 
 - [Vision Transformer Paper (ViT)](https://arxiv.org/abs/2010.11929)
