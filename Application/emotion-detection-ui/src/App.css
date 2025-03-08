@@ -61,6 +61,25 @@
     box-sizing: border-box;
     border-left: 1px solid #333;
     overflow-y: auto;
+    /* justify-content: space-between; */
+  }
+
+  .project-title {
+    margin-bottom: 1rem;
+    text-align: center;
+  }
+
+  .project-title h2 {
+    margin: 0;
+    color: #fff;
+  }
+
+  .panel-container {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    gap: 1rem;  /* Increase gap between panels */
   }
   
   .right-panel h3 {
@@ -69,11 +88,13 @@
     color: #fff;
     font-size: 1.1rem;
     font-weight: 600;
+    padding-top: 2vh;
   }
   
   /* Emotion Result Styles */
   .emotion-result {
     margin-bottom: 1rem;
+    padding-top: 2vh;
   }
   
   .emotion-result .emotion-row {

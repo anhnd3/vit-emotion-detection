@@ -1,5 +1,13 @@
 import React from 'react';
 
+interface EmotionResults {
+  [emotion: string]: number;
+}
+
+interface EmotionResultProps {
+  emotionResults: EmotionResults;
+}
+
 interface ProgressBarProps {
   value: number;
   color: string;
@@ -22,7 +30,12 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ value, color }) => {
   );
 };
 
-const EmotionResult: React.FC = () => {
+function capitalizeFirstChar(str: string): string {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+const EmotionResult: React.FC<EmotionResultProps> = ({ emotionResults }) => {
   const EMOTION_LIST = [
     'angry',
     'disgust',
@@ -33,10 +46,6 @@ const EmotionResult: React.FC = () => {
     'surprised',
   ];
 
-  // Dummy data for demonstration; later this data will come as props.
-  const dummyEmotions: Record<string, number> = { happy: 60, neutral: 15, surprised: 5, angry: 5, disgust: 5, fear: 5, sad: 5 };
-
-  // Define subdued colors for each emotion.
   const emotionColors: Record<string, string> = {
     angry: '#d9534f',     // red
     disgust: '#5cb85c',   // green
@@ -51,7 +60,7 @@ const EmotionResult: React.FC = () => {
     <div className="emotion-result">
       <h3>Emotion Results</h3>
       {EMOTION_LIST.map((emo) => {
-        const value = dummyEmotions[emo] || 0;
+        const value = emotionResults[emo] || 0;
         return (
           <div
             key={emo}
@@ -74,10 +83,5 @@ const EmotionResult: React.FC = () => {
     </div>
   );
 };
-
-function capitalizeFirstChar(str: string) {
-  if (!str) return str; // Check if the string is empty
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
 
 export default EmotionResult;
