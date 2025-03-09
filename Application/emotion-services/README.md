@@ -24,7 +24,7 @@ python3 -m venv env
 source env/bin/activate
 ```
 
-## 📦 Step 2: Install Dependencies
+### 📦 Step 2: Install Dependencies
 
 Install required Python packages from the provided requirements.txt:
 
@@ -32,7 +32,7 @@ Install required Python packages from the provided requirements.txt:
 pip install -r requirements.txt
 ```
 
-### 📦 Key Dependencies
+#### 📦 **Key Dependencies**
 
 - **FastAPI:** `fastapi==0.115.11`
 - **Uvicorn:** `uvicorn==0.34.0`
@@ -47,7 +47,7 @@ pip install -r requirements.txt
 
 *(Refer to `requirements.txt` for the complete list of dependencies.)*
 
-## ▶️ Step 3: Run the Application
+### ▶️ Step 3: Run the Application
 
 Install required Python packages from the provided requirements.txt:
 
