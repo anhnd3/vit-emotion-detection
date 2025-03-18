@@ -75,7 +75,7 @@ const EmotionResult: React.FC<EmotionResultProps> = ({ emotionResults }) => {
             </label>
             <ProgressBar value={value} color={emotionColors[emo]} />
             <span style={{ marginLeft: '0.5rem', color: '#bbb', fontSize: '0.85rem' }}>
-              {value}%
+              {value?.toFixed(3)}%
             </span>
           </div>
         );

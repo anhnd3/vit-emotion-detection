@@ -5,13 +5,10 @@ import EmotionResult from './components/EmotionResult';
 import LeftPanel from './components/LeftPanel';
 
 const App: React.FC = () => {
-  // Global state to store annotated image (as base64) and emotion state map.
-  const [annotatedImage, setAnnotatedImage] = useState<string>('');
   const [emotionResults, setEmotionResults] = useState<{ [key: string]: number }>({});
+  const [selectedModel, setSelectedModel] = useState<string>('vit_default');
 
-  // Callback to update the global state when new results are received.
-  const handleResult = (img: string, results: { [key: string]: number }) => {
-    setAnnotatedImage(img);
+  const handleResult = (results: { [key: string]: number }) => {
     setEmotionResults(results);
   };
 
@@ -19,15 +16,37 @@ const App: React.FC = () => {
     <div className="app-container">
       {/* Left Panel (2/3 width) */}
       <div className="left-panel">
-        <LeftPanel onResult={handleResult} annotatedImage={annotatedImage} />
+        <LeftPanel onResult={handleResult} selectedModel={selectedModel} />
       </div>
 
       {/* Right Panel (1/3 width) */}
       <div className="right-panel">
-      <div className="project-title">
-          <h2>ViT - Emotion Detection</h2>
+        <div className="project-title">
+          <h2>Emotion Detection Demo</h2>
         </div>
         <CheckBoxPanel />
+        <div className="model-selector" style={{ marginBottom: '1rem' }}>
+          <h4>Select Model</h4>
+          <label>
+            <input
+              type="radio"
+              value="vit_default"
+              checked={selectedModel === 'vit_default'}
+              onChange={(e) => setSelectedModel(e.target.value)}
+            />
+            ViT Default
+          </label>
+          <br />
+          <label>
+            <input
+              type="radio"
+              value="vit_optimized"
+              checked={selectedModel === 'vit_optimized'}
+              onChange={(e) => setSelectedModel(e.target.value)}
+            />
+            ViT Optimized
+          </label>
+        </div>
         <EmotionResult emotionResults={emotionResults} />
       </div>
     </div>

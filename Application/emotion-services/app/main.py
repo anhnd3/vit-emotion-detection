@@ -2,11 +2,12 @@ import os
 import io
 import base64
 import time
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse, StreamingResponse
+import json
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, WebSocket
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
-import inference  # our inference module with init_inference() and detect_and_annotate()
+import inference
 import torch
 from contextlib import asynccontextmanager
 
@@ -15,18 +16,12 @@ async def lifespan(app: FastAPI):
     device = torch.device("xpu")
     start = time.time()
     inference.init_inference(device)
-    # Warm up the model with a dummy image (e.g., a blank image)
-    from PIL import Image
-    dummy = Image.new("RGB", (224, 224), color="white")
-    _ = inference.detect_and_annotate(dummy)
-    print(f"Model initialized and warmed up in {time.time() - start:.2f} seconds.")
+    print(f"All models warmed up in {time.time() - start:.2f} seconds.")
     yield
     print("Shutting down.")
 
-
 app = FastAPI(lifespan=lifespan)
 
-# Configure CORS: allow requests from the frontend (e.g., http://localhost:3000)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -40,7 +35,10 @@ def read_root():
     return {"message": "Emotion Detection API is running."}
 
 @app.post("/upload")
-async def upload_image(file: UploadFile = File(...)):
+async def upload_image(
+    file: UploadFile = File(...),
+    model: str = Form("vit_default")
+):
     start_time = time.time()
     try:
         contents = await file.read()
@@ -48,11 +46,11 @@ async def upload_image(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=400, detail="Invalid image file")
     
-    print("Received image upload request.")
-    annotated_image, emotion_results = inference.detect_and_annotate(image)
-    print(f"Detection and annotation completed in {time.time() - start_time:.2f} seconds.")
+    print(f"Received image upload request; using model: {model}")
+    annotated_image, emotion_results = inference.detect_and_annotate(image, model)
+    print(f"Detection completed in {time.time() - start_time:.2f} seconds.")
     
-    # Convert the annotated image to a base64-encoded string (WEBP format).
+    # Convert annotated image to base64 (WEBP format)
     buffered = io.BytesIO()
     annotated_image.save(buffered, format="WEBP")
     img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
@@ -62,6 +60,44 @@ async def upload_image(file: UploadFile = File(...)):
         "annotated_image": img_base64,
         "emotion_results": emotion_results
     })
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    frame_count = 0
+    start_time = time.time()
+    model_key = "vit_default"  # or choose dynamically if needed
+    while True:
+        try:
+            # Receive a frame (data URL string)
+            data = await websocket.receive_text()
+            header, encoded = data.split(',', 1)
+            decoded = base64.b64decode(encoded)
+            image = Image.open(io.BytesIO(decoded)).convert("RGB")
+            
+            # Process the image for emotion detection & annotation.
+            annotated_image, emotion_results = inference.detect_and_annotate(image, model_key)
+            
+            # Re-encode annotated image to WEBP base64 data URL.
+            buffered = io.BytesIO()
+            annotated_image.save(buffered, format="WEBP")
+            img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+            annotated_frame = "data:image/webp;base64," + img_base64
+            
+            frame_count += 1
+            elapsed = time.time() - start_time
+            current_fps = frame_count / elapsed if elapsed > 0 else 0
+            
+            response = {
+                "fps": current_fps,
+                "frame": annotated_frame,
+                "emotion_results": emotion_results
+            }
+            await websocket.send_text(json.dumps(response))
+        except Exception as e:
+            print("WebSocket error:", e)
+            break
+
 
 if __name__ == "__main__":
     import uvicorn

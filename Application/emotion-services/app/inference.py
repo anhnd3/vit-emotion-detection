@@ -1,36 +1,51 @@
 import os
 import torch
 import torch.nn as nn
+import torchvision.models as models
 import torchvision.transforms as T
 from PIL import Image, ImageDraw, ImageFont
 import cv2
 import numpy as np
 from typing import Tuple
+from tqdm import tqdm
 
 # Number of emotion classes and their labels.
 NUM_CLASSES = 7
 EMOTION_CLASSES = ["angry", "disgust", "fear", "happy", "neutral", "sad", "surprised"]
 
-def load_emotion_pretrained_model() -> nn.Module:
+def load_emotion_pretrained_model_local(model_path: str, device: torch.device, optimized: bool = False) -> nn.Module:
     """
-    Loads the pre-trained DeiT model from torch.hub (adapted for emotion recognition).
-    This model is assumed to have been fine-tuned on FER-2013.
+    Loads a local ViT-B/16 model for emotion recognition from the given model_path.
+    If optimized is True, use a Sequential header with Dropout followed by Linear.
+    Otherwise, use a single Linear layer.
     """
-    print("Loading pre-trained DeiT model from torch.hub (adapted for emotion recognition)...")
-    model = torch.hub.load('facebookresearch/deit:main', 'deit_base_patch16_224', pretrained=True)
-    # Adapt the classification head for FER-2013 (7 classes)
-    model.head = nn.Linear(model.head.in_features, NUM_CLASSES)
-    model.eval()
-    print("Model loaded successfully.")
-    return model
+    try:
+        print(f"Loading local ViT-B/16 model from {model_path} ...")
+        model = models.vit_b_16(weights=None)
+        if optimized:
+            # Use a Sequential header with Dropout (p=0.1) followed by Linear layer.
+            model.heads = nn.Sequential(
+                nn.Dropout(p=0.1),
+                nn.Linear(768, NUM_CLASSES)
+            )
+        else:
+            # Use a simple Linear layer.
+            model.heads = nn.Linear(768, NUM_CLASSES)
+        model = model.to(device)
+        state_dict = torch.load(model_path, map_location=device)
+        model.load_state_dict(state_dict)
+        model.eval()
+        print(f"Model loaded successfully from {model_path}")
+        return model
+    except Exception as e:
+        print(f"Error loading model from {model_path}: {e}")
+        raise
 
 class EmotionModel:
     def __init__(self, model: nn.Module, device: torch.device):
         self.device = device
         self.model = model.to(device)
         self.model.eval()
-
-        # Preprocessing transforms.
         self.transforms = T.Compose([
             T.Resize((224, 224)),
             T.ToTensor(),
@@ -46,43 +61,67 @@ class EmotionModel:
             if isinstance(outputs, (tuple, list)):
                 outputs = outputs[0]
             probabilities = torch.softmax(outputs, dim=1).squeeze(0).cpu().numpy()
-        # Convert each value to a Python float.
-        return {emotion: float(round(probabilities[idx] * 100, 2)) for idx, emotion in enumerate(self.classes)}
+        return {emotion: float(round(probabilities[i] * 100, 3)) for i, emotion in enumerate(self.classes)}
 
-
-# Global variable to hold the initialized model.
-emotion_model = None
+# Global dictionary to hold all initialized models.
+emotion_models = {}
 
 def init_inference(device: torch.device):
     """
-    Initializes the emotion model. Must be called once at startup.
+    Initializes and warms up all available emotion models.
+    Loads two models: "vit_default" and "vit_optimized".
     """
-    global emotion_model
-    deit_model = load_emotion_pretrained_model()
-    emotion_model = EmotionModel(deit_model, device)
-    print("Inference model initialized.")
+    global emotion_models
+    base_dir = os.path.join(os.path.dirname(__file__), 'models')
+    path_default = os.path.join(base_dir, 'vit_b16_fer2013.pth')
+    path_optimized = os.path.join(base_dir, 'vit_b16_fer2013_optimized.pth')
+    
+    try:
+        model_default = load_emotion_pretrained_model_local(path_default, device, optimized=False)
+        emotion_models["vit_default"] = EmotionModel(model_default, device)
+    except Exception as e:
+        print(f"Failed to load default model: {e}")
+
+    try:
+        model_optimized = load_emotion_pretrained_model_local(path_optimized, device, optimized=True)
+        emotion_models["vit_optimized"] = EmotionModel(model_optimized, device)
+    except Exception as e:
+        print(f"Failed to load optimized model: {e}")
+    
+    if not emotion_models:
+        raise RuntimeError("No emotion models could be loaded. Check your model files.")
+    
+    # Warm up each loaded model with a dummy inference using a progress bar.
+    dummy = Image.new("RGB", (224, 224), color="white")
+    for key in tqdm(emotion_models, desc="Warming up models"):
+        try:
+            _ = emotion_models[key].predict(dummy)
+            print(f"Model '{key}' warmed up.")
+        except Exception as e:
+            print(f"Error warming up model '{key}': {e}")
+    
+    print("All available inference models initialized:", list(emotion_models.keys()))
 
 # Set up Haar Cascade for face detection.
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
-def detect_and_annotate(image: Image.Image) -> Tuple[Image.Image, dict]:
+def detect_and_annotate(image: Image.Image, model_key: str) -> Tuple[Image.Image, dict]:
     """
-    Accepts a PIL image, detects the largest face, draws a bounding box,
-    and returns the annotated image (with only the face highlighted) along
-    with the emotion state map.
+    Accepts a PIL image, selects the specified model via model_key,
+    detects the largest face, draws a bounding box, and returns the annotated image
+    along with the emotion state map.
     """
-    if emotion_model is None:
-        raise RuntimeError("Model not initialized. Call init_inference() first.")
-
-    # Convert the PIL image to an OpenCV BGR image.
+    if not emotion_models or model_key not in emotion_models:
+        raise RuntimeError("Model not initialized or invalid model key. Call init_inference() first.")
+    
+    selected_model = emotion_models[model_key]
+    
     cv_image = np.array(image.convert("RGB"))
     cv_image = cv_image[:, :, ::-1]  # Convert RGB to BGR
-    cv_image = np.ascontiguousarray(cv_image)  # Ensure contiguous memory
-
-    # Convert to grayscale for face detection.
+    cv_image = np.ascontiguousarray(cv_image)
+    
     gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
-
     if len(faces) > 0:
         faces = sorted(faces, key=lambda x: x[2]*x[3], reverse=True)
         x, y, w, h = faces[0]
@@ -90,26 +129,6 @@ def detect_and_annotate(image: Image.Image) -> Tuple[Image.Image, dict]:
     else:
         x, y, w, h = 10, 10, 50, 50
 
-    # Convert the annotated image back to a PIL image.
     annotated_image = Image.fromarray(cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB))
-    # Get the emotion state map.
-    emotion_results = emotion_model.predict(image)
-
-    # Do not overlay text on the image (for production use).
+    emotion_results = selected_model.predict(image)
     return annotated_image, emotion_results
-
-# if __name__ == "__main__":
-#     # For local testing.
-#     device = torch.device("xpu")
-#     init_inference(device)
-#     test_image_path = os.path.join(os.path.dirname(__file__), '..', 'models', '2025_03_01.webp')
-#     try:
-#         test_image = Image.open(test_image_path).convert("RGB")
-#     except Exception as e:
-#         print("Error loading test image:", e)
-#         sys.exit(1)
-#     annotated_image, results = detect_and_annotate(test_image)
-#     output_path = os.path.join(os.path.dirname(__file__), '..', 'models', 'annotated_result.webp')
-#     annotated_image.save(output_path)
-#     print("Emotion detection results:", results)
-#     print(f"Annotated image saved to {output_path}")
