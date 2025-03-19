@@ -40,11 +40,21 @@ const App: React.FC = () => {
           <label>
             <input
               type="radio"
-              value="vit_optimized"
+              value="resnet50"
+              checked={selectedModel === 'resnet50'}
+              onChange={(e) => setSelectedModel(e.target.value)}
+            />
+            Resnet
+          </label>
+          <br />
+          <label>
+            <input
+              type="radio"
+              value="vit_2"
               checked={selectedModel === 'vit_optimized'}
               onChange={(e) => setSelectedModel(e.target.value)}
             />
-            ViT Optimized
+            ViT 2
           </label>
         </div>
         <EmotionResult emotionResults={emotionResults} />

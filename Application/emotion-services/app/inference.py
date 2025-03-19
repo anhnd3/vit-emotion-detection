@@ -75,6 +75,7 @@ def init_inference(device: torch.device):
     base_dir = os.path.join(os.path.dirname(__file__), 'models')
     path_default = os.path.join(base_dir, 'vit_b16_fer2013.pth')
     path_optimized = os.path.join(base_dir, 'vit_b16_fer2013_optimized.pth')
+    path_resnet50 = os.path.join(base_dir, 'resnet50_fer2013.pth')
     
     try:
         model_default = load_emotion_pretrained_model_local(path_default, device, optimized=False)
@@ -87,6 +88,12 @@ def init_inference(device: torch.device):
         emotion_models["vit_optimized"] = EmotionModel(model_optimized, device)
     except Exception as e:
         print(f"Failed to load optimized model: {e}")
+        
+    try:
+        resnet50_model = load_resnet50_model(path_resnet50, device)
+        emotion_models["resnet50"] = ResNetEmotionModel(resnet50_model, device)
+    except Exception as e:
+        print(f"Failed to load ResNet50 model: {e}")
     
     if not emotion_models:
         raise RuntimeError("No emotion models could be loaded. Check your model files.")
@@ -132,3 +139,33 @@ def detect_and_annotate(image: Image.Image, model_key: str) -> Tuple[Image.Image
     annotated_image = Image.fromarray(cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB))
     emotion_results = selected_model.predict(image)
     return annotated_image, emotion_results
+
+def load_resnet50_model(model_path: str, device: torch.device) -> nn.Module:
+    print(f"Loading ResNet50 model from {model_path} ...")
+    resnet50 = models.resnet50(weights=None)
+    resnet50.fc = nn.Linear(resnet50.fc.in_features, NUM_CLASSES)
+    resnet50 = resnet50.to(device)
+    state_dict = torch.load(model_path, map_location=device)
+    resnet50.load_state_dict(state_dict)
+    resnet50.eval()
+    print("ResNet50 model loaded successfully!")
+    return resnet50
+
+class ResNetEmotionModel:
+    def __init__(self, model: nn.Module, device: torch.device):
+        self.device = device
+        self.model = model.to(device)
+        self.model.eval()
+        self.transforms = T.Compose([
+            T.Resize((224, 224)),
+            T.ToTensor(),
+            T.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        ])
+        self.classes = EMOTION_CLASSES
+
+    def predict(self, image: Image.Image) -> dict:
+        x = self.transforms(image).unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            outputs = self.model(x)
+            probabilities = torch.softmax(outputs, dim=1).squeeze(0).cpu().numpy()
+        return {emotion: float(round(probabilities[i] * 100, 3)) for i, emotion in enumerate(self.classes)}
