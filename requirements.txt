@@ -25,6 +25,7 @@ frozenlist==1.5.0
 fsspec==2024.12.0
 grapheme==0.6.0
 h11==0.14.0
+httptools==0.6.4
 huggingface-hub==0.29.1
 humanfriendly==10.0
 idna==3.10
@@ -77,6 +78,8 @@ Pygments==2.19.1
 pymoo==0.6.1.3
 pyparsing==3.2.1
 python-dateutil==2.9.0.post0
+python-dotenv==1.0.1
+python-multipart==0.0.20
 pytorch-triton-xpu==3.2.0+gite98b6fcb
 pytz==2025.1
 PyYAML==6.0.2
@@ -112,6 +115,9 @@ tzdata==2025.1
 umf==0.9.1
 urllib3==2.3.0
 uvicorn==0.34.0
+uvloop==0.21.0
+watchfiles==1.0.4
+websockets==15.0.1
 wrapt==1.17.2
 xxhash==3.5.0
 yarl==1.18.3
