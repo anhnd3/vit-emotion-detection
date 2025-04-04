@@ -46,6 +46,7 @@ Here are a few snapshots of the system in action:
 ## 🎯 What We Built — and Why It Matters
 
 We built a real-time **emotion recognition MVP** powered by video streaming and Google's Vision Transformer (ViT).
+🎥 [Watch the video demo](https://drive.google.com/file/d/1ejYeT68z1jnLx-gyZPks0DS0VcFzzQpa/view?usp=drive_link)
 
 ### 🔧 How It Works
 
